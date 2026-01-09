@@ -35,6 +35,6 @@ int main(int argc, char* argv[]) {
 
     cpu_run(&cpu);
 
-    printf("Programa finalizado. PC: %04X\n", cpu.PC);
+    printf("Programa finalizado. PC: %04X\n", cpu.registers[15]);
     return 0;
 }
