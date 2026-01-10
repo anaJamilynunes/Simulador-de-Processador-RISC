@@ -14,7 +14,7 @@ void cpu_init(CPU* cpu){
 
     cpu->registers[15] = 0x0000; // pc
     cpu->registers[14] = MEMORY_SIZE; // SP
-    cpu->hatl = false;
+    cpu->halt = false;
 }
 
 void cpu_instruction_execute(CPU* cpu){
@@ -73,31 +73,132 @@ void cpu_instruction_execute(CPU* cpu){
             break;
         }
 
-        case 0xF: { // HALT
-            print_cpu_state(cpu);
-            cpu->hatl = true;
+        case 0x5: { // ADD Rd = Rm + Rn
+            uint8_t Rd = GET_RD(cpu->IR);
+            uint8_t Rm = GET_RM(cpu->IR);
+            uint8_t Rn = GET_RN(cpu->IR);
+
+            uint32_t result = cpu->registers[Rm] + cpu->registers[Rn];
+            cpu->registers[Rd] = (uint16_t) result;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = (result > 0xFFFF);
             break;
         }
 
-        // case 0x0: 
-        //     cpu->hatl = true;
-        //     break;
-        // case 0x1: // ADD
-        //     // Implementar da instrucao ADD
-        //     break;
-        // case 0x2: // SUB
-        //     // implementar da instrucao SUB
-        //     break;
+        case 0x6: { // ADDI Rd = Rm + #Im
+            uint8_t Rd  = GET_RD(cpu->IR);
+            uint8_t Rm  = GET_RM(cpu->IR);
+            uint8_t imm = GET_IMM4(cpu->IR);
+
+            uint32_t result = cpu->registers[Rm] + imm;
+            cpu->registers[Rd] = (uint16_t) result;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = (result > 0xFFFF);
+            break;
+        }
+
+        case 0x7: { // SUB Rd = Rm - Rn
+            uint8_t Rd = GET_RD(cpu->IR);
+            uint8_t Rm = GET_RM(cpu->IR);
+            uint8_t Rn = GET_RN(cpu->IR);
+
+            int32_t result = (int32_t)cpu->registers[Rm] -
+                            (int32_t)cpu->registers[Rn];
+
+            cpu->registers[Rd] = (uint16_t) result;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = (result < 0);
+            break;
+        }
+
+        case 0x8: { // SUBI Rd = Rm - #Im
+            uint8_t Rd  = GET_RD(cpu->IR);
+            uint8_t Rm  = GET_RM(cpu->IR);
+            uint8_t imm = GET_IMM4(cpu->IR);
+
+            int32_t result = (int32_t)cpu->registers[Rm] - imm;
+            cpu->registers[Rd] = (uint16_t) result;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = (result < 0);
+            break;
+        }
+
+        case 0x9: { // AND Rd = Rm and Rn
+            uint8_t Rd = GET_RD(cpu->IR);
+            uint8_t Rm = GET_RM(cpu->IR);
+            uint8_t Rn = GET_RN(cpu->IR);
+
+            cpu->registers[Rd] = cpu->registers[Rm] & cpu->registers[Rn];
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = 0;
+            break;
+        }
+
+        case 0xA: { // OR Rd = Rm OR Rn
+            uint8_t Rd = GET_RD(cpu->IR);
+            uint8_t Rm = GET_RM(cpu->IR);
+            uint8_t Rn = GET_RN(cpu->IR);
+
+            cpu->registers[Rd] = cpu->registers[Rm] | cpu->registers[Rn];
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = 0;
+            break;
+        }
+
+        case 0xB: { // SHR Rd = Rm >> #Im
+            uint8_t Rd  = GET_RD(cpu->IR);
+            uint8_t Rm  = GET_RM(cpu->IR);
+            uint8_t imm = GET_IMM4(cpu->IR);
+
+            cpu->registers[Rd] = cpu->registers[Rm] >> imm;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = 0; 
+            break;
+        }
+
+        case 0xC: { // SHL Rd = Rm << #Im
+            uint8_t Rd  = GET_RD(cpu->IR);
+            uint8_t Rm  = GET_RM(cpu->IR);
+            uint8_t imm = GET_IMM4(cpu->IR);
+
+            cpu->registers[Rd] = cpu->registers[Rm] << imm;
+
+            cpu->flagZ = (cpu->registers[Rd] == 0);
+            cpu->flagC = 0;
+            break;
+        }
+
+        case 0xD: { // CMP Rm, Rn =>
+            uint8_t Rm = GET_RM(cpu->IR);
+            uint8_t Rn = GET_RN(cpu->IR);
+
+            cpu->flagZ = (cpu->registers[Rm] == cpu->registers[Rn]); //z = Rm = Rn
+            cpu->flagC = (cpu->registers[Rm] < cpu->registers[Rn]); //c = Rm < Rn
+            break;
+        }
+
+        case 0xF: { // HALT
+            print_cpu_state(cpu);
+            cpu->halt = true;
+            break;
+        }
 
         default:
             printf("Opcode invalido: %X\n", opcode);
-            cpu->hatl = true;
+            cpu->halt = true;
             break;
     }
 }
 
 void cpu_run(CPU* cpu){
-    while(!cpu->hatl){
+    while(!cpu->halt){
         uint16_t pc_anterior = cpu->registers[15];
 
         cpu->IR = cpu->memory[cpu->registers[15]];

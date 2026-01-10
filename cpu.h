@@ -14,6 +14,14 @@
 extern uint16_t breakpoints[MAX_BREAKPOINTS];
 extern int qtd_breakpoints;
 
+#define GET_OPCODE(ir) ((ir) & 0x000F)
+
+#define GET_RN(ir)     (((ir) >> 4)  & 0x000F)
+#define GET_RM(ir)     (((ir) >> 8)  & 0x000F)
+#define GET_RD(ir)     (((ir) >> 12) & 0x000F)
+
+#define GET_IMM4(ir)   (((ir) >> 4) & 0x000F)
+
 typedef struct cpu {
     uint16_t memory[MEMORY_SIZE];
     uint16_t registers[16]; // R0–R15
@@ -23,7 +31,7 @@ typedef struct cpu {
     bool flagC;
     bool mem_acessed[MEMORY_SIZE];
 
-    bool hatl;
+    bool halt;
 } CPU;
 
 void cpu_init(CPU* cpu);
