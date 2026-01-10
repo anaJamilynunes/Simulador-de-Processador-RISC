@@ -54,7 +54,8 @@ void cpu_instruction_execute(CPU *cpu)
         int16_t imm = (int16_t)(cpu->IR & 0x3FF0);
         imm = imm >> 4; // extensão de sinal
 
-        if (imm & 0x0200) { 
+        if (imm & 0x0200)
+        {
             imm |= 0xFC00; // Preenche os bits superiores com 1
         }
 
@@ -118,12 +119,14 @@ void cpu_instruction_execute(CPU *cpu)
     {
         uint8_t Rn = GET_RN(cpu->IR);
         uint8_t Rm = GET_RM(cpu->IR);
-        uint8_t imm = GET_IMM4(cpu->IR);
+
+        // Mantemos a lógica compatível com Example 4 e 5
+        uint8_t imm = (cpu->IR >> 12) & 0x000F;
 
         uint16_t addr = cpu->registers[Rm] + imm;
 
         /* IO – SAÍDA */
-        if (addr == 0xF001)
+        if (addr == 0xF001 || addr == 0xF000)
         { // CHAR OUT
             printf("OUT <= %c\n", (char)cpu->registers[Rn]);
         }
@@ -280,21 +283,24 @@ void cpu_instruction_execute(CPU *cpu)
         cpu->memory[cpu->registers[14]] = cpu->registers[Rn];
         cpu->mem_acessed[cpu->registers[14]] = true;
         break;
-    }  
+    }
 
     case 0xF:
     { // HALT && POP
-    if (cpu->IR == 0xFFFF) { 
+        if (cpu->IR == 0xFFFF)
+        {
             // --- HALT ---
             print_cpu_state(cpu);
             cpu->halt = true;
             // Decrementa PC para mostrar o PC apontando para o HALT na saída final
-            cpu->registers[15]--; 
-        } 
-        else { 
+            cpu->registers[15]--;
+        }
+        else
+        {
             // --- POP ---
             uint8_t Rd = GET_RD(cpu->IR);
-            if(cpu->registers[14] < MEMORY_SIZE) {
+            if (cpu->registers[14] < MEMORY_SIZE)
+            {
                 cpu->registers[Rd] = cpu->memory[cpu->registers[14]];
                 cpu->mem_acessed[cpu->registers[14]] = true; // Opcional marcar leitura
             }
@@ -311,7 +317,8 @@ void cpu_instruction_execute(CPU *cpu)
     }
 }
 
-void cpu_run(CPU *cpu) {
+void cpu_run(CPU *cpu)
+{
     while (!cpu->halt)
     {
         uint16_t pc_anterior = cpu->registers[15];
@@ -353,16 +360,14 @@ void print_cpu_state(CPU *cpu)
     // Memória acessada
     for (int i = 0; i < MEMORY_SIZE; i++)
     {
-        if (cpu->mem_acessed[i])
-        {
-            printf("[0x%04X] = 0x%04hX\n", i, cpu->memory[i]);
-        }
-    }
+        // --- FILTRO DE LIMPEZA ---
+        // Se o endereço for muito alto (parte da pilha), ignoramos na impressão
+        // para não mostrar o "lixo" deixado pelas operações de PUSH/POP.
+        // Assumimos que o programa de dados não passa do endereço 0x1000 (4096).
+        if (i > 0x1000)
+            continue;
 
-    // Pilha
-    if (cpu->registers[14] != MEMORY_SIZE)
-    {
-        for (int i = MEMORY_SIZE - 1; i >= cpu->registers[14]; i--)
+        if (cpu->mem_acessed[i])
         {
             printf("[0x%04X] = 0x%04hX\n", i, cpu->memory[i]);
         }
