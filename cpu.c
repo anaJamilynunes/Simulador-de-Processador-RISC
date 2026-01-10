@@ -119,8 +119,6 @@ void cpu_instruction_execute(CPU *cpu)
     {
         uint8_t Rn = GET_RN(cpu->IR);
         uint8_t Rm = GET_RM(cpu->IR);
-
-        // Mantemos a lógica compatível com Example 4 e 5
         uint8_t imm = (cpu->IR >> 12) & 0x000F;
 
         uint16_t addr = cpu->registers[Rm] + imm;
@@ -357,19 +355,31 @@ void print_cpu_state(CPU *cpu)
     printf("Z = %d\n", cpu->flagZ);
     printf("C = %d\n", cpu->flagC);
 
-    // Memória acessada
+    // Memória acessada (dados do programa, não pilha e não instruções)
     for (int i = 0; i < MEMORY_SIZE; i++)
     {
         // --- FILTRO DE LIMPEZA ---
-        // Se o endereço for muito alto (parte da pilha), ignoramos na impressão
-        // para não mostrar o "lixo" deixado pelas operações de PUSH/POP.
-        // Assumimos que o programa de dados não passa do endereço 0x1000 (4096).
+        // Ignoramos a região da pilha (acima de 0x1000) aqui
+        // A pilha será impressa separadamente abaixo
         if (i > 0x1000)
-            continue;
+            break;
 
         if (cpu->mem_acessed[i])
         {
             printf("[0x%04X] = 0x%04hX\n", i, cpu->memory[i]);
+        }
+    }
+
+    // A pilha é descendente: cresce de 0x2000 para baixo
+    if (cpu->registers[14] < MEMORY_SIZE)
+    {
+        // Imprime da posição atual do SP até 0x1FFF (último elemento empilhado)
+        for (int i = MEMORY_SIZE - 1; i >= cpu->registers[14]; i--)
+        {
+            if (cpu->mem_acessed[i])
+            {
+                printf("[0x%04X] = 0x%04hX\n", i, cpu->memory[i]);
+            }
         }
     }
 }
