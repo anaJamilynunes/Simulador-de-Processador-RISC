@@ -38,8 +38,51 @@ void cpu_instruction_execute(CPU *cpu)
         // HALT
         // Qualquer coisa olha no documento, ta no ponto 3 eu acho
 
-        // NOEMI
-    /* LDR – Rd = MEM[Rm + imm] */
+    // Alterações Eudes (JMP, JEQ, JNE, JLT, JGE)
+    case 0x0:
+    { // JMP
+        int16_t imm = (int16_t)(cpu->IR & 0xFFF0);
+        imm = imm >> 4; // extensão de sinal
+
+        cpu->registers[15] = cpu->registers[15] + imm;
+        break;
+    }
+    case 0x1:
+    { // JCOND
+        uint16_t cond = (cpu->IR >> 14) & 0x3;
+
+        int16_t imm = (int16_t)(cpu->IR & 0x3FF0);
+        imm = imm >> 4; // extensão de sinal
+
+        if (imm & 0x0200) { 
+            imm |= 0xFC00; // Preenche os bits superiores com 1
+        }
+
+        bool jump = false;
+
+        switch (cond)
+        {
+        case 0x0: // JEQ
+            jump = cpu->flagZ;
+            break;
+        case 0x1: // JNE
+            jump = !cpu->flagZ;
+            break;
+        case 0x2: // JLT
+            jump = (!cpu->flagZ && cpu->flagC);
+            break;
+        case 0x3: // JGE
+            jump = (cpu->flagZ || !cpu->flagC);
+            break;
+        }
+
+        if (jump)
+        {
+            cpu->registers[15] = cpu->registers[15] + imm;
+        }
+        break;
+    }
+
     case 0x2:
     {
         uint8_t Rd = GET_RD(cpu->IR);
@@ -97,67 +140,14 @@ void cpu_instruction_execute(CPU *cpu)
         break;
     }
 
-    /* PUSH */
-    case 0xE:
-    {
-        uint8_t Rn = GET_RN(cpu->IR);
-
-        cpu->registers[14]--; // SP--
-        cpu->memory[cpu->registers[14]] = cpu->registers[Rn];
-        cpu->mem_acessed[cpu->registers[14]] = true;
-        break;
-    }
-
-    /* POP */
+    /* MOV */
     case 0x4:
     {
         uint8_t Rd = GET_RD(cpu->IR);
 
-        cpu->registers[Rd] = cpu->memory[cpu->registers[14]];
-        cpu->mem_acessed[cpu->registers[14]] = true;
-        cpu->registers[14]++; // SP++
-        break;
-    }
-
-    // Alterações Eudes (JMP, JEQ, JNE, JLT, JGE)
-    case 0x0:
-    { // JMP
-        // imediato ocupa os 12 bits mais significativos
-        int16_t imm = (int16_t)(cpu->IR & 0xFFF0);
-        imm = imm >> 4; // extensão de sinal
-
-        cpu->registers[15] = cpu->registers[15] + imm;
-        break;
-    }
-    case 0x1:
-    { // JCOND
-        uint16_t cond = (cpu->IR >> 14) & 0x3;
-
-        int16_t imm = (int16_t)(cpu->IR & 0x0FF0);
-        imm = imm >> 4; // extensão de sinal
-
-        bool jump = false;
-
-        switch (cond)
-        {
-        case 0x0: // JEQ
-            jump = cpu->flagZ;
-            break;
-        case 0x1: // JNE
-            jump = !cpu->flagZ;
-            break;
-        case 0x2: // JLT
-            jump = (!cpu->flagZ && cpu->flagC);
-            break;
-        case 0x3: // JGE
-            jump = (cpu->flagZ || !cpu->flagC);
-            break;
-        }
-
-        if (jump)
-        {
-            cpu->registers[15] = cpu->registers[15] + imm;
-        }
+        // Imediato de 8 bits (bits 4 a 11) com extensão de sinal
+        int8_t imm8 = (int8_t)((cpu->IR >> 4) & 0xFF);
+        cpu->registers[Rd] = (uint16_t)imm8;
         break;
     }
 
@@ -281,22 +271,47 @@ void cpu_instruction_execute(CPU *cpu)
         break;
     }
 
+    /* PUSH */
+    case 0xE:
+    {
+        uint8_t Rn = GET_RN(cpu->IR);
+
+        cpu->registers[14]--; // SP--
+        cpu->memory[cpu->registers[14]] = cpu->registers[Rn];
+        cpu->mem_acessed[cpu->registers[14]] = true;
+        break;
+    }  
+
     case 0xF:
-    { // HALT
-        print_cpu_state(cpu);
-        cpu->halt = true;
+    { // HALT && POP
+    if (cpu->IR == 0xFFFF) { 
+            // --- HALT ---
+            print_cpu_state(cpu);
+            cpu->halt = true;
+            // Decrementa PC para mostrar o PC apontando para o HALT na saída final
+            cpu->registers[15]--; 
+        } 
+        else { 
+            // --- POP ---
+            uint8_t Rd = GET_RD(cpu->IR);
+            if(cpu->registers[14] < MEMORY_SIZE) {
+                cpu->registers[Rd] = cpu->memory[cpu->registers[14]];
+                cpu->mem_acessed[cpu->registers[14]] = true; // Opcional marcar leitura
+            }
+            cpu->registers[14]++; // SP++
+        }
         break;
     }
 
     default:
-        printf("Opcode invalido: %X\n", opcode);
+        // Instrução inválida
+        printf("Instrução inválida: 0x%04hX\n", cpu->IR);
         cpu->halt = true;
         break;
     }
 }
 
-void cpu_run(CPU *cpu)
-{
+void cpu_run(CPU *cpu) {
     while (!cpu->halt)
     {
         uint16_t pc_anterior = cpu->registers[15];
